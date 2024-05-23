@@ -97,6 +97,7 @@ try:
         for indicator, signal in signals.items():
             print(f"{indicator}: {signal}")
 
+
     if __name__ == "__main__":
         if len(sys.argv) != 3:
             print("Usage: python analize.py <trading-pair> <interval>")

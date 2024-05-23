@@ -1,58 +1,81 @@
 #!/usr/bin/env python3
 
-import os
-import argparse
-from binance.client import Client
-from keys import API_KEY, API_SECRET
+import sys
+from binance.exceptions import BinanceAPIException, BinanceRequestException
 
-# Initialize the Binance client
-client = Client(API_KEY, API_SECRET)
+def print_help():
+    print("Usage: price.py <arg1> <arg2>")
+    print("Description: This script fetches the current price for a specified cryptocurrency trading pair on Binance.")
 
-def get_current_price(symbol):
-    try:
-        ticker = client.get_symbol_ticker(symbol=symbol)
-        return float(ticker['price'])
-    except Exception as e:
-        print(f"An error occurred while fetching the price: {e}")
-        return None
+if '-h' in sys.argv or '--help' in sys.argv:
+    print_help()
+    sys.exit(0)
 
-def calculate_breakeven_price(current_price, trade):
-    fee_rate = 0.001  # 0.1% trading fee per trade
-    if trade == 'BUY':
-        # Breakeven price when selling the bought asset
-        breakeven_price = current_price * (1 + 2 * fee_rate)
-    else:
-        # Breakeven price when buying back the sold asset
-        breakeven_price = current_price / (1 + 2 * fee_rate)
-    return breakeven_price
+try:
+    import os
+    import argparse
+    from binance.client import Client
+    from keys import API_KEY, API_SECRET
 
-def main(symbol, trade):
-    trade = trade.upper()
+    # Initialize the Binance client
+    client = Client(API_KEY, API_SECRET)
 
-    if trade not in ['BUY', 'SELL']:
-        print("Invalid trade type. Please enter either 'BUY' or 'SELL'.")
-        return
+    def get_current_price(symbol):
+        try:
+            ticker = client.get_symbol_ticker(symbol=symbol)
+            return float(ticker['price'])
+        except Exception as e:
+            print(f"An error occurred while fetching the price: {e}")
+            return None
 
-    current_price = get_current_price(symbol)
+    def calculate_breakeven_price(current_price, trade):
+        fee_rate = 0.001  # 0.1% trading fee per trade
+        if trade == 'BUY':
+            # Breakeven price when selling the bought asset
+            breakeven_price = current_price * (1 + 2 * fee_rate)
+        else:
+            # Breakeven price when buying back the sold asset
+            breakeven_price = current_price / (1 + 2 * fee_rate)
+        return breakeven_price
 
-    if current_price is None:
-        print("Failed to get the current price.")
-        return
+    def main(symbol, trade):
+        trade = trade.upper()
 
-    breakeven_price = calculate_breakeven_price(current_price, trade)
-    quote_asset = symbol[-4:]  # Assuming the trading pair format is always like "BTCUSDT"
+        if trade not in ['BUY', 'SELL']:
+            print("Invalid trade type. Please enter either 'BUY' or 'SELL'.")
+            return
 
-    print(f"The current market price of {symbol} is: {current_price:.6f} {quote_asset}")
-    if trade == 'BUY':
-        print(f"The breakeven price to cover 2x 0.1% trading fees if SOLD is: {breakeven_price:.6f} {quote_asset}")
-    else:
-        print(f"The breakeven price to cover 2x 0.1% trading fees if BOUGHT back is: {breakeven_price:.6f} {quote_asset}")
+        current_price = get_current_price(symbol)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Binance price and breakeven calculation script")
-    parser.add_argument('symbol', type=str, help='Trading pair symbol (e.g., BTCUSDT)')
-    parser.add_argument('trade', type=str, help='Trade type (BUY or SELL)')
+        if current_price is None:
+            print("Failed to get the current price.")
+            return
 
-    args = parser.parse_args()
+        breakeven_price = calculate_breakeven_price(current_price, trade)
+        quote_asset = symbol[-4:]  # Assuming the trading pair format is always like "BTCUSDT"
 
-    main(args.symbol, args.trade)
+        print(f"The current market price of {symbol} is: {current_price:.6f} {quote_asset}")
+        if trade == 'BUY':
+            print(f"The breakeven price to cover 2x 0.1% trading fees if SOLD is: {breakeven_price:.6f} {quote_asset}")
+        else:
+            print(f"The breakeven price to cover 2x 0.1% trading fees if BOUGHT back is: {breakeven_price:.6f} {quote_asset}")
+
+    if __name__ == "__main__":    
+        parser = argparse.ArgumentParser(description="Binance price and breakeven calculation script")
+        parser.add_argument('symbol', type=str, help='Trading pair symbol (e.g., BTCUSDT)')
+        parser.add_argument('trade', type=str, help='Trade type (BUY or SELL)')
+
+        args = parser.parse_args()
+
+        main(args.symbol, args.trade)
+
+except BinanceAPIException as e:
+    print(f"Binance API Exception: {e}")
+except BinanceRequestException as e:
+    print(f"Binance Request Exception: {e}")
+except IndexError:
+    print("Error: Missing command line arguments.")
+    print_help()
+except Exception as e:
+    print(f"An unexpected error occurred: {e}")
+
