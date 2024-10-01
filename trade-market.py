@@ -4,7 +4,7 @@ import sys
 from binance.exceptions import BinanceAPIException, BinanceRequestException
 
 def print_help():
-    print("Usage: trade-market.py <arg1> <arg2>")
+    print("Usage: trade-market.py <symbol> <BUY/SELL>")
     print("Description: This script places a market order for a specified cryptocurrency trading pair on Binance.")
 
 if '-h' in sys.argv or '--help' in sys.argv:
@@ -23,12 +23,16 @@ try:
     def get_available_balance(asset):
         """Get the available balance of a specific asset in the user's spot wallet."""
         balance = client.get_asset_balance(asset=asset)
-        available_balance = float(balance['free'])
+        if balance is None:
+            raise ValueError(f"Could not retrieve balance for asset: {asset}")
+        available_balance = float(balance.get('free', 0.0))
         return available_balance
 
     def get_symbol_info(symbol):
         """Get the exchange info for a specific trading pair symbol."""
         exchange_info = client.get_symbol_info(symbol)
+        if exchange_info is None:
+            raise ValueError(f"Could not retrieve symbol info for: {symbol}")
         return exchange_info
 
     def round_down(quantity, decimals):
@@ -57,11 +61,20 @@ try:
             print("Invalid action. Use BUY or SELL.")
             sys.exit(1)
 
-        base_asset = symbol[:3]
-        quote_asset = symbol[3:]
+        try:
+            base_asset, quote_asset = symbol.split('/')
+        except ValueError:
+            print("Invalid symbol format. Use format BASE/QUOTE (e.g., DOGE/BTC).")
+            sys.exit(1)
+
+        symbol = base_asset + quote_asset
 
         symbol_info = get_symbol_info(symbol)
-        lot_size_filter = next(filter(lambda x: x['filterType'] == 'LOT_SIZE', symbol_info['filters']))
+        filters = symbol_info.get('filters', [])
+        lot_size_filter = next((f for f in filters if f['filterType'] == 'LOT_SIZE'), None)
+        if lot_size_filter is None:
+            raise ValueError(f"Could not find LOT_SIZE filter for symbol: {symbol}")
+        
         step_size = float(lot_size_filter['stepSize'])
         step_size_decimals = len(str(step_size).rstrip('0').split('.')[1])
 
@@ -72,6 +85,9 @@ try:
 
             # Get current price of the trading pair
             avg_price = client.get_avg_price(symbol=symbol)
+            if avg_price is None:
+                raise ValueError(f"Could not retrieve average price for symbol: {symbol}")
+            
             current_price = float(avg_price['price'])
             
             # Calculate the quantity to buy
@@ -106,6 +122,7 @@ except BinanceRequestException as e:
 except IndexError:
     print("Error: Missing command line arguments.")
     print_help()
+except ValueError as e:
+    print(f"ValueError: {e}")
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
-
